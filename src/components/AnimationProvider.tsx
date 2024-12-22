@@ -11,7 +11,7 @@ function AnimationProvider({children}: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AnimatePresence initial={isFirstMounted}>{children}</AnimatePresence>
+    <AnimatePresence mode="sync" initial={false}>{children}</AnimatePresence>
   );
 }
 

@@ -1,51 +1,85 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import React, { useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 
 export type NavigationDirection = "forward" | "backward";
 
-interface RouterContextType {
+interface StackRouterContextType {
+  stack: string[];
   direction: NavigationDirection;
-  push: (url: string) => void;
+  isSwipeTransition: boolean;
+  push: (path: string) => void;
   back: () => void;
+  replace: (path: string) => void;
+  setIsSwipeTransition: (value: boolean) => void;
 }
 
-const StackRouterContext = React.createContext<RouterContextType | null>(null);
+const StackRouterContext = createContext<StackRouterContextType | null>(null);
 
-function StackRouterProvider({
-  children,
-}: {
+export function useRouterStack() {
+  const context = useContext(StackRouterContext);
+  if (!context) {
+    throw new Error("useRouterStack must be used within a StackRouterProvider");
+  }
+  return context;
+}
+
+interface StackRouterProviderProps {
   children: React.ReactNode;
-}) {
-  const [direction, setDirection] = React.useState<NavigationDirection>("forward");
+  initialPath?: string;
+}
+
+export function StackRouterProvider({ children, initialPath }: StackRouterProviderProps) {
   const router = useRouter();
+  const currentPath = usePathname();
+  const [stack, setStack] = useState<string[]>([initialPath || currentPath]);
+  const [direction, setDirection] = useState<NavigationDirection>("forward");
+  const [isSwipeTransition, setIsSwipeTransition] = useState(false);
 
-  const push = useCallback((url: string) => {
+  useEffect(() => {
+    if (currentPath !== stack[stack.length - 1]) {
+      setStack((prev) => [...prev, currentPath]);
+      setDirection("forward");
+    }
+  }, [currentPath, stack]);
+
+  const push = (path: string) => {
     setDirection("forward");
-    router.push(url);
-  }, [router] );
+    setStack((prev) => [...prev, path]);
+    router.push(path);
+  };
 
-  const back = useCallback(() => {
-    setDirection("backward");
-    router.back();
-  }, [router]);
+  const back = () => {
+    if (stack.length > 1) {
+      setDirection("backward");
+      const newStack = [...stack];
+      newStack.pop();
+      const previousPath = newStack[newStack.length - 1];
+      setStack(newStack);
+      router.push(previousPath);
+    }
+  };
+
+  const replace = (path: string) => {
+    setDirection("forward");
+    setStack((prev) => [...prev.slice(0, -1), path]);
+    router.replace(path);
+  };
+
+  const value: StackRouterContextType = {
+    stack,
+    direction,
+    isSwipeTransition,
+    push,
+    back,
+    replace,
+    setIsSwipeTransition,
+  };
 
   return (
-    <StackRouterContext.Provider value={{ direction, push, back }}>
+    <StackRouterContext.Provider value={value}>
       {children}
     </StackRouterContext.Provider>
   );
 }
-
-const useRouterStack = () => {
-  const context = React.useContext(StackRouterContext);
-
-  if (!context) {
-    throw new Error("useRouterContext must be used within a RouterProvider");
-  }
-
-  return context;
-};
-
-export { StackRouterProvider, useRouterStack };
